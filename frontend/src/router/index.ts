@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 
 import Dashboard from '@/views/Dashboard.vue'
+const Duty = () => import('@/views/duty/index.vue')
 const Windfarm = () => import('@/views/windfarm/index.vue')
 const Turbine = () => import('@/views/turbine/index.vue')
 const Blade = () => import('@/views/blade/index.vue')
@@ -24,6 +25,7 @@ const router = createRouter({
   history: createWebHistory(),
   routes: [
     { path: '/', name: 'dashboard', component: Dashboard },
+    { path: '/duty', name: 'duty', component: Duty },
     { path: '/windfarm', name: 'windfarm', component: Windfarm },
     { path: '/turbine', name: 'turbine', component: Turbine },
     { path: '/blade', name: 'blade', component: Blade },

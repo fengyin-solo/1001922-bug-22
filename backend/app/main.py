@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.routers import ROUTERS
+from app.services.duty import duty_service
 from app.store import store
 
 app = FastAPI(title="风电场机组运维平台", version="1.0.0")
@@ -34,5 +35,5 @@ def health() -> dict[str, object]:
 
 @app.get("/api/overview")
 def overview() -> dict[str, object]:
-    """运营概览：把各业务模块的待处理量汇总成看板卡片。"""
-    return store.overview()
+    """运营概览（看板）：与值班台账共用同一份取数逻辑，冲突时以台账登记为准。"""
+    return duty_service.overview()
