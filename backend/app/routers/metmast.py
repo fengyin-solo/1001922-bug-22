@@ -1,4 +1,4 @@
-"""测风塔接口：维护测风塔，覆盖提交校验、登记数据缺失、停用测风塔等动作。"""
+"""测风塔接口：维护测风塔，覆盖提交校验、登记数据缺失、停用测风塔、恢复使用等动作。"""
 from __future__ import annotations
 
 from typing import Any
@@ -6,14 +6,13 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Query
 
 from app.schemas import ActionResult, EntryPayload, PageResult
-from app.services.metmast import MetmastService
+from app.services.metmast import FIELDS, MetmastService
 
 router = APIRouter(prefix="/api/metmast", tags=["测风塔"])
 
 service = MetmastService()
 
-LIST_FIELDS = ["塔架编号", "所在场站", "塔架高度", "测风层数", "风速仪型号", "上次校验日", "数据完整率", "测风状态"]
-STATUSES = ["待校验", "数据正常", "数据缺失", "已停用"]
+LIST_FIELDS = FIELDS
 
 
 @router.get("", response_model=PageResult[dict])
@@ -30,6 +29,26 @@ def list_entries(
     return PageResult(items=items, total=total, page=page, size=size)
 
 
+@router.get("/summary")
+def summary() -> dict[str, Any]:
+    """在运塔数、数据缺失塔数、平均数据完整率，列表页与看板共用。"""
+    return service.summary()
+
+
+@router.get("/deactivations")
+def list_deactivations() -> dict[str, Any]:
+    """停用清单：同一测风塔只出现一次。"""
+    items = service.list_deactivations()
+    return {"total": len(items), "items": items}
+
+
+@router.get("/export")
+def export_entries() -> dict[str, Any]:
+    """导出测风塔清单：返回当前过滤条件下的全量数据。"""
+    items, total = service.list_entries(page=1, size=10000)
+    return {"module": "metmast", "total": total, "items": items}
+
+
 @router.get("/{entry_id}", response_model=dict)
 def get_entry(entry_id: int) -> dict:
     """读取单条测风塔明细；不存在时给出可读的错误说明。"""
@@ -37,6 +56,15 @@ def get_entry(entry_id: int) -> dict:
     if entry is None:
         raise HTTPException(status_code=404, detail=f"测风塔 {entry_id} 不存在或已归档")
     return entry
+
+
+@router.get("/{entry_id}/history")
+def get_history(entry_id: int) -> dict[str, Any]:
+    """读取历史校验记录与最近一次恢复登记；历史校验只追加、恢复只留最近一次。"""
+    history = service.get_history(entry_id)
+    if history is None:
+        raise HTTPException(status_code=404, detail=f"测风塔 {entry_id} 不存在或已归档")
+    return history
 
 
 @router.post("", response_model=ActionResult)
@@ -50,16 +78,10 @@ def create_entry(payload: EntryPayload) -> ActionResult:
 
 @router.post("/{entry_id}/actions", response_model=ActionResult)
 def run_action(entry_id: int, payload: EntryPayload) -> ActionResult:
-    """对单条测风塔执行提交校验、登记数据缺失、停用测风塔；不允许的动作会被拦下并说明原因。"""
-    action = str(payload.values.get("action") or "").strip()
-    entry, message = service.run_action(entry_id, action)
+    """提交校验、登记数据缺失、停用测风塔、恢复使用；不允许的动作会被拦下并说明原因。"""
+    values = dict(payload.values or {})
+    action = str(values.pop("action", "") or "").strip()
+    entry, message = service.run_action(entry_id, action, values)
     if entry is None:
         return ActionResult(ok=False, message=message)
     return ActionResult(ok=True, message=message, entry=entry)
-
-
-@router.get("/export")
-def export_entries() -> dict[str, Any]:
-    """导出测风塔清单：返回当前过滤条件下的全量数据。"""
-    items, total = service.list_entries(page=1, size=10000)
-    return {"module": "metmast", "total": total, "items": items}

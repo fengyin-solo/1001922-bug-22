@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from app.seed import SEED_ROWS
+from app.seed import INTERNAL_TABLES, SEED_ROWS
 
 
 class Store:
@@ -16,7 +16,8 @@ class Store:
         }
 
     def module_names(self) -> list[str]:
-        return sorted(self._tables)
+        # 以 $ 开头的是业务表的附属表（如停用清单、校验记录），看板与模块清单不统计它们
+        return sorted(name for name in self._tables if not name.startswith("$"))
 
     def rows(self, module: str) -> list[dict[str, Any]]:
         return self._tables.setdefault(module, [])

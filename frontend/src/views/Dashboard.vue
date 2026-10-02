@@ -6,6 +6,17 @@
         <p class="page-desc">汇总各业务模块的关键指标，先看总量再看异常。</p>
       </div>
     </header>
+
+    <h3 class="section-title">值班看板</h3>
+    <div class="stat-row">
+      <article v-for="card in dutyCards" :key="card.label" class="stat-card">
+        <span class="stat-label">{{ card.label }}</span>
+        <strong class="stat-value">{{ card.value }}</strong>
+      </article>
+    </div>
+    <p class="source-note">值班看板与「值班台账」取自同一份数据（duty_ledger），冲突时以台账为准。</p>
+
+    <h3 class="section-title">业务模块</h3>
     <div class="stat-row">
       <article v-for="card in cards" :key="card.label" class="stat-card">
         <span class="stat-label">{{ card.label }}</span>
@@ -31,17 +42,42 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 
-import { fetchJson } from '@/api/client'
+import { fetchJson, request } from '@/api/client'
 
 type Overview = {
   cards: { label: string; value: number }[]
   modules: { name: string; created: number; pending: number; abnormal: number }[]
 }
 
+type DutyLedger = {
+  stats: Record<string, number>
+  source: string
+}
+
 const cards = ref<Overview['cards']>([])
 const moduleRows = ref<Overview['modules']>([])
+const dutyCards = ref<{ label: string; value: number }[]>([])
+
+async function loadDutyBoard() {
+  // 看板不单独维护统计，直接消费台账接口返回的同源 stats
+  try {
+    const response = await request('/api/duty/ledger')
+    if (!response.ok) {
+      return
+    }
+    const payload = (await response.json()) as DutyLedger
+    dutyCards.value = [
+      { label: '今日值班记录', value: payload.stats['今日值班记录'] ?? 0 },
+      { label: '在岗班组', value: payload.stats['在岗班组'] ?? 0 },
+      { label: '在岗人数', value: payload.stats['在岗人数'] ?? 0 },
+    ]
+  } catch {
+    // 台账接口不可用时看板卡片留空，不用第二份数据兜底，避免口径不一致
+  }
+}
 
 onMounted(async () => {
+  void loadDutyBoard()
   try {
     const payload = await fetchJson<Overview>('/api/overview')
     cards.value = payload.cards
@@ -52,3 +88,8 @@ onMounted(async () => {
   }
 })
 </script>
+
+<style scoped>
+.section-title { font-size: 15px; margin: 16px 0 8px; }
+.source-note { font-size: 12px; color: var(--muted); margin: 0 0 12px; }
+</style>
